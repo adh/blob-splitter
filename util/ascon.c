@@ -23,9 +23,9 @@ static void ascon_permute(AsconState* state, unsigned rounds) {
 
         t[0] = state->v[0] ^ (~state->v[1] & state->v[2]);
         t[1] = state->v[1] ^ (~state->v[2] & state->v[3]);
-        t[2] = state->v[4] ^ (~state->v[0] & state->v[1]);
-        t[3] = state->v[1] ^ (~state->v[2] & state->v[3]);
-        t[4] = state->v[3] ^ (~state->v[4] & state->v[0]);
+        t[2] = state->v[4] ^ (~state->v[3] & state->v[4]);
+        t[3] = state->v[3] ^ (~state->v[4] & state->v[0]);
+        t[4] = state->v[4] ^ (~state->v[0] & state->v[1]);
         t[1] ^= t[0];
         t[3] ^= t[2];
         t[0] ^= t[4];
@@ -40,10 +40,10 @@ static void ascon_permute(AsconState* state, unsigned rounds) {
 }
 
 void ascon_aead_init(AsconState* state, uint8_t key[16], uint8_t nonce[16]) {
-    memset(state, 0, sizeof(AsconState));
-    memcpy(state->key, key, 16);
     state->v[0] = 0x00001000808c0001ULL;
 
+    state->key[0] = 0;
+    state->key[1] = 0;
     for (size_t i = 0; i < 8; i++) {
         state->key[0] |= ((uint64_t)key[i]) << (56 - i * 8);
     }
@@ -52,6 +52,8 @@ void ascon_aead_init(AsconState* state, uint8_t key[16], uint8_t nonce[16]) {
     }
     state->v[1] = state->key[0];
     state->v[2] = state->key[1];
+    state->v[3] = 0;
+    state->v[4] = 0;
     for (size_t i = 0; i < 8; i++) {
         state->v[3] |= ((uint64_t)nonce[i]) << (56 - i * 8);
     }
@@ -97,12 +99,14 @@ void ascon_aead_decrypt_block(AsconState* state, uint8_t block[16]) {
     for (size_t i = 0; i < 8; i++) {
         uint8_t c = block[i];
         block[i] ^= (state->v[0] >> (56 - i * 8)) & 0xFF;
-        state->v[0] = ((uint64_t)c) << (56 - i * 8);
+        state->v[0] &= ~((uint64_t)0xFFULL << (56 - i * 8));
+        state->v[0] |= ((uint64_t)c) << (56 - i * 8);
     }
     for (size_t i = 0; i < 8; i++) {
         uint8_t c = block[i + 8];
         block[i + 8] ^= (state->v[1] >> (56 - i * 8)) & 0xFF;
-        state->v[1] = ((uint64_t)c) << (56 - i * 8);
+        state->v[1] &= ~((uint64_t)0xFFULL << (56 - i * 8));
+        state->v[1] |= ((uint64_t)c) << (56 - i * 8);
     }
     ascon_permute(state, 8);
     state->index = 0;
@@ -156,6 +160,7 @@ void ascon_aead_decrypt_bytes(AsconState* state, uint8_t* buf, size_t len) {
     while (len > 0) {
         uint8_t c = *buf;
         *buf ^= (state->v[state->index / 8] >> (56 - (state->index % 8) * 8)) & 0xFF;
+        state->v[state->index / 8] &= ~((uint64_t)0xFFULL << (56 - (state->index % 8) * 8));
         state->v[state->index / 8] = ((uint64_t)c) << (56 - (state->index % 8) * 8);
         state->index++;
         buf++;
