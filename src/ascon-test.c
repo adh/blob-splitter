@@ -1,17 +1,21 @@
 #include <util/ascon.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
+#include <stdlib.h>
 
 uint8_t key[16] = {
-    0x9e, 0x54, 0x4e, 0xf5, 0xe6, 0x90, 0x77, 0x00,
-    0xb6, 0xf4, 0x69, 0xd8, 0xc1, 0x30, 0x9d, 0x91
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 uint8_t nonce[16] = {
-    0x75, 0xdd, 0xe1, 0xef, 0x53, 0x5b, 0x52, 0x8a,
-    0xf9, 0x19, 0x9a, 0xf1, 0x38, 0xa4, 0x9f, 0x5c
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 uint8_t plaintext[] = "ascon";
+char* plaintext2 = "The quick brown fox jumps over the lazy dog";
 uint8_t associated_data[] = "ASCON";
+char* associated_data2 = "Longer associated data for more complete test";
 
 void hexdump(const char* label, const uint8_t* buf, size_t len) {
     printf("%s: ", label);
@@ -23,6 +27,20 @@ void hexdump(const char* label, const uint8_t* buf, size_t len) {
 
 int main(){
     AsconState state;
+
+    state.v[0] = 0x0000080100cc0002;
+    state.v[1] = 0x0000000000000000;
+    state.v[2] = 0x0000000000000000;
+    state.v[3] = 0x0000000000000000;
+    state.v[4] = 0x0000000000000000;
+    ascon_permute(&state, 12);
+    printf("S0= %016" PRIx64 "\n", state.v[0]);
+    printf("S1= %016" PRIx64 "\n", state.v[1]);
+    printf("S2= %016" PRIx64 "\n", state.v[2]);
+    printf("S3= %016" PRIx64 "\n", state.v[3]);
+    printf("S4= %016" PRIx64 "\n", state.v[4]);
+
+
     ascon_aead_init(&state, key, nonce);
     ascon_aead_ad_bytes(&state, associated_data, sizeof(associated_data) - 1);
     ascon_aead_ad_end(&state);
@@ -35,5 +53,43 @@ int main(){
     hexdump("Ciphertext", bytes, sizeof(bytes));
     hexdump("Tag", tag, sizeof(tag));
 
+    ascon_aead_init(&state, key, nonce);
+    ascon_aead_ad_bytes(&state, associated_data, sizeof(associated_data) - 1);
+    ascon_aead_ad_end(&state);
+    uint8_t decrypted[5];
+    memcpy(decrypted, bytes, 5);
+    ascon_aead_decrypt_bytes(&state, decrypted, 5);
+    uint8_t check_tag[16];
+    ascon_aead_finish(&state, check_tag);
+
+    hexdump("Decrypted", decrypted, sizeof(decrypted));
+    hexdump("Check Tag", check_tag, sizeof(check_tag));
+
+    for (int i = 0; i < 16; i++){
+        key[i] = i;
+        nonce[i] = i;
+    }
+
+
+    uint8_t* bytes2 = malloc(strlen(plaintext2));
+    memcpy(bytes2, plaintext2, strlen(plaintext2));
+
+    ascon_aead_init(&state, key, nonce);
+    ascon_aead_ad_bytes(&state, associated_data2, strlen(associated_data2));
+    ascon_aead_ad_end(&state);
+    ascon_aead_encrypt_bytes(&state, bytes2, strlen(plaintext2));
+    printf("index= %zu\n", state.index);
+    printf("S0= %016" PRIx64 "\n", state.v[0]);
+    printf("S1= %016" PRIx64 "\n", state.v[1]);
+    printf("S2= %016" PRIx64 "\n", state.v[2]);
+    printf("S3= %016" PRIx64 "\n", state.v[3]);
+    printf("S4= %016" PRIx64 "\n", state.v[4]);
+    ascon_aead_finish(&state, tag);
+
+    hexdump("Ciphertext", bytes2, strlen(plaintext2));
+    hexdump("Tag", tag, sizeof(tag));
+
+
+    free(bytes2);
     return 0;
 }

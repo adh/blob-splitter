@@ -14,6 +14,8 @@ typedef struct AsconState_s {
     size_t index;
 } AsconState;
 
+void ascon_permute(AsconState* state, unsigned rounds);
+
 void ascon_aead_init(AsconState* state, uint8_t key[16], uint8_t nonce[16]);
 void ascon_aead_ad_block(AsconState* state, uint8_t block[16]);
 void ascon_aead_ad_end(AsconState* state);
