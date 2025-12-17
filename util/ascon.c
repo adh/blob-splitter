@@ -232,15 +232,25 @@ void ascon_xof_init(AsconXofState* state) {
     state->index = 0;
     ascon_permute(&state->state, 12);
 }
-void ascon_cxof_init(AsconXofState* state, uint8_t* key, size_t keylen) {
-    state->state.v[0] = 0x0000080000cc0003ULL;
+void ascon_cxof_init(AsconXofState* state, uint8_t* data, size_t len) {
+    state->state.v[0] = 0x0000080000cc0004ULL;
     state->state.v[1] = 0;
     state->state.v[2] = 0;
     state->state.v[3] = 0;
     state->state.v[4] = 0;
     state->index = 0;
     ascon_permute(&state->state, 12);
-    ascon_xof_absorb(state, key, keylen);
+    uint8_t z0[8];
+    z0[0] = len & 0xFF;
+    z0[1] = (len >> 8) & 0xFF;
+    z0[2] = (len >> 16) & 0xFF;
+    z0[3] = (len >> 24) & 0xFF;
+    z0[4] = (len >> 32) & 0xFF;
+    z0[5] = (len >> 40) & 0xFF;
+    z0[6] = (len >> 48) & 0xFF;
+    z0[7] = (len >> 56) & 0xFF;
+    ascon_xof_absorb(state, z0, 8);
+    ascon_xof_absorb(state, data, len);
     ascon_xof_finalize(state);
 }
 void ascon_xof_absorb(AsconXofState* state, uint8_t* data, size_t len) {
