@@ -42,27 +42,28 @@ int main(){
     printf("S3= %016" PRIx64 "\n", state.v[3]);
     printf("S4= %016" PRIx64 "\n", state.v[4]);
 
+    AsconAeadState state_aead;
 
-    ascon_aead_init(&state, key, nonce);
-    ascon_aead_ad_bytes(&state, associated_data, sizeof(associated_data) - 1);
-    ascon_aead_ad_end(&state);
+    ascon_aead_init(&state_aead, key, nonce);
+    ascon_aead_ad_bytes(&state_aead, associated_data, sizeof(associated_data) - 1);
+    ascon_aead_ad_end(&state_aead);
     uint8_t bytes [5];
     memcpy(bytes, plaintext, 5);
-    ascon_aead_encrypt_bytes(&state, bytes, 5);
+    ascon_aead_encrypt_bytes(&state_aead, bytes, 5);
     uint8_t tag[16];
-    ascon_aead_finish(&state, tag);
+    ascon_aead_finish(&state_aead, tag);
 
     hexdump("Ciphertext", bytes, sizeof(bytes));
     hexdump("Tag", tag, sizeof(tag));
 
-    ascon_aead_init(&state, key, nonce);
-    ascon_aead_ad_bytes(&state, associated_data, sizeof(associated_data) - 1);
-    ascon_aead_ad_end(&state);
+    ascon_aead_init(&state_aead, key, nonce);
+    ascon_aead_ad_bytes(&state_aead, associated_data, sizeof(associated_data) - 1);
+    ascon_aead_ad_end(&state_aead);
     uint8_t decrypted[5];
     memcpy(decrypted, bytes, 5);
-    ascon_aead_decrypt_bytes(&state, decrypted, 5);
+    ascon_aead_decrypt_bytes(&state_aead, decrypted, 5);
     uint8_t check_tag[16];
-    ascon_aead_finish(&state, check_tag);
+    ascon_aead_finish(&state_aead, check_tag);
 
     hexdump("Decrypted", decrypted, sizeof(decrypted));
     hexdump("Check Tag", check_tag, sizeof(check_tag));
@@ -76,17 +77,17 @@ int main(){
     uint8_t* bytes2 = malloc(strlen(plaintext2));
     memcpy(bytes2, plaintext2, strlen(plaintext2));
 
-    ascon_aead_init(&state, key, nonce);
-    ascon_aead_ad_bytes(&state, associated_data2, strlen(associated_data2));
-    ascon_aead_ad_end(&state);
-    ascon_aead_encrypt_bytes(&state, bytes2, strlen(plaintext2));
-    printf("index= %zu\n", state.index);
-    printf("S0= %016" PRIx64 "\n", state.v[0]);
-    printf("S1= %016" PRIx64 "\n", state.v[1]);
-    printf("S2= %016" PRIx64 "\n", state.v[2]);
-    printf("S3= %016" PRIx64 "\n", state.v[3]);
-    printf("S4= %016" PRIx64 "\n", state.v[4]);
-    ascon_aead_finish(&state, tag);
+    ascon_aead_init(&state_aead, key, nonce);
+    ascon_aead_ad_bytes(&state_aead, associated_data2, strlen(associated_data2));
+    ascon_aead_ad_end(&state_aead);
+    ascon_aead_encrypt_bytes(&state_aead, bytes2, strlen(plaintext2));
+    printf("index= %zu\n", state_aead.index);
+    printf("S0= %016" PRIx64 "\n", state_aead.state.v[0]);
+    printf("S1= %016" PRIx64 "\n", state_aead.state.v[1]);
+    printf("S2= %016" PRIx64 "\n", state_aead.state.v[2]);
+    printf("S3= %016" PRIx64 "\n", state_aead.state.v[3]);
+    printf("S4= %016" PRIx64 "\n", state_aead.state.v[4]);
+    ascon_aead_finish(&state_aead, tag);
 
     hexdump("Ciphertext", bytes2, strlen(plaintext2));
     hexdump("Tag", tag, sizeof(tag));

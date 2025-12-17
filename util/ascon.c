@@ -45,8 +45,8 @@ void ascon_permute(AsconState* state, unsigned rounds) {
     }
 }
 
-void ascon_aead_init(AsconState* state, uint8_t key[16], uint8_t nonce[16]) {
-    state->v[0] = 0x00001000808c0001ULL;
+void ascon_aead_init(AsconAeadState* state, uint8_t key[16], uint8_t nonce[16]) {
+    state->state.v[0] = 0x00001000808c0001ULL;
 
     state->key[0] = 0;
     state->key[1] = 0;
@@ -56,125 +56,228 @@ void ascon_aead_init(AsconState* state, uint8_t key[16], uint8_t nonce[16]) {
     for (size_t i = 0; i < 8; i++) {
         state->key[1] |= ((uint64_t)key[i + 8]) << (i * 8);
     }
-    state->v[1] = state->key[0];
-    state->v[2] = state->key[1];
-    state->v[3] = 0;
-    state->v[4] = 0;
+    state->state.v[1] = state->key[0];
+    state->state.v[2] = state->key[1];
+    state->state.v[3] = 0;
+    state->state.v[4] = 0;
     for (size_t i = 0; i < 8; i++) {
-        state->v[3] |= ((uint64_t)nonce[i]) << (i * 8);
+        state->state.v[3] |= ((uint64_t)nonce[i]) << (i * 8);
     }
     for (size_t i = 0; i < 8; i++) {
-        state->v[4] |= ((uint64_t)nonce[i + 8]) << (i * 8);
+        state->state.v[4] |= ((uint64_t)nonce[i + 8]) << (i * 8);
     }
 
-    ascon_permute(state, 12);
-    state->v[3] ^= state->key[0];
-    state->v[4] ^= state->key[1];
+    ascon_permute(&state->state, 12);
+    state->state.v[3] ^= state->key[0];
+    state->state.v[4] ^= state->key[1];
     state->index = 0;
 }
-void ascon_aead_ad_block(AsconState* state, uint8_t block[16]) {
+void ascon_aead_ad_block(AsconAeadState* state, uint8_t block[16]) {
     for (size_t i = 0; i < 8; i++) {
-        state->v[0] ^= ((uint64_t)block[i]) << (i * 8);
+        state->state.v[0] ^= ((uint64_t)block[i]) << (i * 8);
     }
     for (size_t i = 0; i < 8; i++) {
-        state->v[1] ^= ((uint64_t)block[i + 8]) << (i * 8);
+        state->state.v[1] ^= ((uint64_t)block[i + 8]) << (i * 8);
     }
-    ascon_permute(state, 8);
+    ascon_permute(&state->state, 8);
     state->index = 0;
 }
-void ascon_aead_ad_end(AsconState* state) {
+void ascon_aead_ad_end(AsconAeadState* state) {
     if (state->index > 0) {
         if (state->index < 8) {
-            state->v[0] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
+            state->state.v[0] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
         } else {
-            state->v[1] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
+            state->state.v[1] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
         }
-        ascon_permute(state, 8);
+        ascon_permute(&state->state, 8);
     }
-    state->v[4] ^= 0x8000000000000000ULL;
+    state->state.v[4] ^= 0x8000000000000000ULL;
     state->index = 0;
 }
-void ascon_aead_encrypt_block(AsconState* state, uint8_t block[16]) {
+void ascon_aead_encrypt_block(AsconAeadState* state, uint8_t block[16]) {
     for (size_t i = 0; i < 8; i++) {
-        state->v[0] ^= ((uint64_t)block[i]) << (i * 8);
-        block[i] = (state->v[0] >> (i * 8)) & 0xFF;
+        state->state.v[0] ^= ((uint64_t)block[i]) << (i * 8);
+        block[i] = (state->state.v[0] >> (i * 8)) & 0xFF;
     }
     for (size_t i = 0; i < 8; i++) {
-        state->v[1] ^= ((uint64_t)block[i + 8]) << (i * 8);
-        block[i + 8] = (state->v[1] >> (i * 8)) & 0xFF;
+        state->state.v[1] ^= ((uint64_t)block[i + 8]) << (i * 8);
+        block[i + 8] = (state->state.v[1] >> (i * 8)) & 0xFF;
     }
-    ascon_permute(state, 8);
+    ascon_permute(&state->state, 8);
     state->index = 0;
 }
-void ascon_aead_decrypt_block(AsconState* state, uint8_t block[16]) {
+void ascon_aead_decrypt_block(AsconAeadState* state, uint8_t block[16]) {
     for (size_t i = 0; i < 8; i++) {
         uint8_t c = block[i];
-        block[i] ^= (state->v[0] >> (i * 8)) & 0xFF;
-        state->v[0] &= ~((uint64_t)0xFFULL << (i * 8));
-        state->v[0] |= ((uint64_t)c) << (56 - i * 8);
+        block[i] ^= (state->state.v[0] >> (i * 8)) & 0xFF;
+        state->state.v[0] &= ~((uint64_t)0xFFULL << (i * 8));
+        state->state.v[0] |= ((uint64_t)c) << (56 - i * 8);
     }
     for (size_t i = 0; i < 8; i++) {
         uint8_t c = block[i + 8];
-        block[i + 8] ^= (state->v[1] >> (i * 8)) & 0xFF;
-        state->v[1] &= ~((uint64_t)0xFFULL << (i * 8));
-        state->v[1] |= ((uint64_t)c) << (i * 8);
+        block[i + 8] ^= (state->state.v[1] >> (i * 8)) & 0xFF;
+        state->state.v[1] &= ~((uint64_t)0xFFULL << (i * 8));
+        state->state.v[1] |= ((uint64_t)c) << (i * 8);
     }
-    ascon_permute(state, 8);
+    ascon_permute(&state->state, 8);
     state->index = 0;
 }
-void ascon_aead_finish(AsconState* state, uint8_t tag[16]) {
+void ascon_aead_finish(AsconAeadState* state, uint8_t tag[16]) {
     // padding
-    state->v[state->index / 8] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
+    state->state.v[state->index / 8] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
     state->index = 0;
-    state->v[2] ^= state->key[0];
-    state->v[3] ^= state->key[1];
-    ascon_permute(state, 12);
-    state->v[3] ^= state->key[0];
-    state->v[4] ^= state->key[1];
+    state->state.v[2] ^= state->key[0];
+    state->state.v[3] ^= state->key[1];
+    ascon_permute(&state->state, 12);
+    state->state.v[3] ^= state->key[0];
+    state->state.v[4] ^= state->key[1];
     for (size_t i = 0; i < 8; i++) {
-        tag[i] = (state->v[3] >> (i * 8)) & 0xFF;
+        tag[i] = (state->state.v[3] >> (i * 8)) & 0xFF;
     }
     for (size_t i = 0; i < 8; i++) {
-        tag[i + 8] = (state->v[4] >> (i * 8)) & 0xFF;
+        tag[i + 8] = (state->state.v[4] >> (i * 8)) & 0xFF;
     }
 }
 
-void ascon_aead_ad_bytes(AsconState* state, uint8_t* data, size_t len) {
+void ascon_aead_ad_bytes(AsconAeadState* state, uint8_t* data, size_t len) {
     while (len > 0) {
-        state->v[state->index / 8] ^= ((uint64_t)(*data)) << ((state->index % 8) * 8);
+        state->state.v[state->index / 8] ^= ((uint64_t)(*data)) << ((state->index % 8) * 8);
         state->index++;
         data++;
         len--;
         if (state->index == 16) {
-            ascon_permute(state, 8);
+            ascon_permute(&state->state, 8);
             state->index = 0;
         }
     }
 }
-void ascon_aead_encrypt_bytes(AsconState* state, uint8_t* buf, size_t len) {
+void ascon_aead_encrypt_bytes(AsconAeadState* state, uint8_t* buf, size_t len) {
     while (len > 0) {
-        state->v[state->index / 8] ^= ((uint64_t)(*buf)) << ((state->index % 8) * 8);
-        *buf = (state->v[state->index / 8] >> ((state->index % 8) * 8)) & 0xFF;
+        state->state.v[state->index / 8] ^= ((uint64_t)(*buf)) << ((state->index % 8) * 8);
+        *buf = (state->state.v[state->index / 8] >> ((state->index % 8) * 8)) & 0xFF;
         state->index++;
         buf++;
         len--;
         if (state->index == 16) {
-            ascon_permute(state, 8);
+            ascon_permute(&state->state, 8);
             state->index = 0;
         }
     }
 }
-void ascon_aead_decrypt_bytes(AsconState* state, uint8_t* buf, size_t len) {
+void ascon_aead_decrypt_bytes(AsconAeadState* state, uint8_t* buf, size_t len) {
     while (len > 0) {
         uint8_t c = *buf;
-        *buf ^= (state->v[state->index / 8] >> ((state->index % 8) * 8)) & 0xFF;
-        state->v[state->index / 8] &= ~((uint64_t)0xFFULL << ((state->index % 8) * 8));
-        state->v[state->index / 8] |= ((uint64_t)c) << ((state->index % 8) * 8);
+        *buf ^= (state->state.v[state->index / 8] >> ((state->index % 8) * 8)) & 0xFF;
+        state->state.v[state->index / 8] &= ~((uint64_t)0xFFULL << ((state->index % 8) * 8));
+        state->state.v[state->index / 8] |= ((uint64_t)c) << ((state->index % 8) * 8);
         state->index++;
         buf++;
         len--;
         if (state->index == 16) {
-            ascon_permute(state, 8);
+            ascon_permute(&state->state, 8);
+            state->index = 0;
+        }
+    }
+}
+
+void ascon_hash_init(AsconHashState* state) {
+    state->state.v[0] = 0x0000080100cc0002ULL;
+    state->state.v[1] = 0;
+    state->state.v[2] = 0;
+    state->state.v[3] = 0;
+    state->state.v[4] = 0;
+    state->index = 0;
+    ascon_permute(&state->state, 12);
+}
+void ascon_hash_update(AsconHashState* state, uint8_t* data, size_t len) {
+    while (len > 0) {
+        state->state.v[state->index / 8] ^= ((uint64_t)(*data)) << ((state->index % 8) * 8);
+        state->index++;
+        data++;
+        len--;
+        if (state->index == 8) {
+            ascon_permute(&state->state, 12);
+            state->index = 0;
+        }
+    }
+}
+void ascon_hash_finish(AsconHashState* state, uint8_t hash[32]) {
+    // padding
+    state->state.v[state->index / 8] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
+    state->index = 0;
+    ascon_permute(&state->state, 12);
+    for (size_t i = 0; i < 8; i++) {
+        hash[i] = (state->state.v[0] >> (i * 8)) & 0xFF;
+    }
+    ascon_permute(&state->state, 12);
+    for (size_t i = 0; i < 8; i++) {
+        hash[i + 8] = (state->state.v[0] >> (i * 8)) & 0xFF;
+    }
+    ascon_permute(&state->state, 12);
+    for (size_t i = 0; i < 8; i++) {
+        hash[i + 16] = (state->state.v[0] >> (i * 8)) & 0xFF;
+    }
+    ascon_permute(&state->state, 12);
+    for (size_t i = 0; i < 8; i++) {
+        hash[i + 24] = (state->state.v[0] >> (i * 8)) & 0xFF;
+    }
+}
+
+void ascon_xof_init(AsconXofState* state) {
+    state->state.v[0] = 0x0000080000cc0003ULL;
+    state->state.v[1] = 0;
+    state->state.v[2] = 0;
+    state->state.v[3] = 0;
+    state->state.v[4] = 0;
+    state->index = 0;
+    ascon_permute(&state->state, 12);
+}
+void ascon_cxof_init(AsconXofState* state, uint8_t* key, size_t keylen) {
+    state->state.v[0] = 0x0000080000cc0003ULL;
+    state->state.v[1] = 0;
+    state->state.v[2] = 0;
+    state->state.v[3] = 0;
+    state->state.v[4] = 0;
+    state->index = 0;
+    ascon_permute(&state->state, 12);
+    ascon_xof_absorb(state, key, keylen);
+    ascon_xof_finalize(state);
+}
+void ascon_xof_absorb(AsconXofState* state, uint8_t* data, size_t len) {
+    if (state->squeezing) { /* nonstandard: permit absorbing after squeezing */
+        ascon_permute(&state->state, 12);
+        state->squeezing = 0;
+        state->index = 0;
+    }
+    while (len > 0) {
+        state->state.v[state->index / 8] ^= ((uint64_t)(*data)) << ((state->index % 8) * 8);
+        state->index++;
+        data++;
+        len--;
+        if (state->index == 8) {
+            ascon_permute(&state->state, 12);
+            state->index = 0;
+        }
+    }
+}
+void ascon_xof_finalize(AsconXofState* state) {
+    // padding
+    state->state.v[state->index / 8] ^= (uint64_t)0x01ULL << ((state->index % 8) * 8);
+    state->index = 0;
+    state->squeezing = 1;
+    ascon_permute(&state->state, 12);
+}
+void ascon_xof_squeeze(AsconXofState* state, uint8_t* out, size_t len) {
+    if (!state->squeezing) {
+        ascon_xof_finalize(state);
+    }
+    while (len > 0) {
+        *out = (state->state.v[state->index / 8] >> ((state->index % 8) * 8)) & 0xFF;
+        state->index++;
+        out++;
+        len--;
+        if (state->index == 8) {
+            ascon_permute(&state->state, 12);
             state->index = 0;
         }
     }
