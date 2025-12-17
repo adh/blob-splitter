@@ -1,4 +1,4 @@
-#include <util/ascon.h>
+#include "ascon.h"
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>

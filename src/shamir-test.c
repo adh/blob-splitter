@@ -1,5 +1,5 @@
-#include <shamir/shamir.h>
-#include <util/random.h>
+#include "shamir.h"
+#include "random.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

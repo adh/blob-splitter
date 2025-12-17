@@ -1,4 +1,4 @@
-#include <shamir/shamir.h>
+#include "shamir.h"
 #include <stdlib.h>
 #include <string.h>
 

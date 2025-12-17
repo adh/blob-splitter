@@ -4,18 +4,18 @@ project('blob-splitter', 'c',
 )
 
 executable('shamir-test',
-    sources: ['src/shamir-test.c', 'shamir/shamir.c', 'util/random.c', 'util/ascon.c'],
+    sources: ['src/shamir-test.c', 'src/shamir.c', 'src/random.c', 'src/ascon.c'],
     include_directories: include_directories('.'),
     install: false,
 )
 executable('ascon-test',
-    sources: ['src/ascon-test.c', 'util/ascon.c', 'util/random.c'],
+    sources: ['src/ascon-test.c', 'src/ascon.c', 'src/random.c'],
     include_directories: include_directories('.'),
     install: false,
 )
 
 executable('blob-splitter',
-    sources: ['src/blob-splitter.c', 'shamir/shamir.c', 'util/random.c', 'util/ascon.c'],
+    sources: ['src/blob-splitter.c', 'src/shamir.c', 'src/random.c', 'src/ascon.c'],
     include_directories: include_directories('.'),
     install: true,
 )
