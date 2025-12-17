@@ -2,50 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* 
- * XTEA-based RNG for generating random coefficients so as to make the
- * implementation self-contained.
- */
-
-typedef struct XteaRng_s {
-    uint8_t buffer[8];
-    size_t index;
-    uint64_t counter;
-    uint32_t key[4];
-} XteaRng;
-
-static void xtea_encrypt_block(XteaRng *rng, uint8_t block[8]) {
-    uint32_t v0 = ((uint32_t *)block)[0], v1 = ((uint32_t *)block)[1];
-    uint32_t sum = 0;
-    const uint32_t delta = 0x9E3779B9;
-    for (size_t i = 0; i < 32; i++) {
-        v0 += ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + rng->key[sum & 3]);
-        sum += delta;
-        v1 += ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + rng->key[(sum >> 11) & 3]);
-    }
-    ((uint32_t *)block)[0] = v0;
-    ((uint32_t *)block)[1] = v1;
-}
-
-static void xtea_rng_init(XteaRng *rng, const uint8_t seed[16]) {
-    memcpy(rng->key, seed, 16);
-    rng->index = 8;
-    memset(rng->buffer, 0, 8);
-    rng->counter = 0;
-    xtea_encrypt_block(rng, rng->buffer);
-}
-
-static uint8_t gf256_rand(XteaRng *rng) {
-    if (rng->index >= 8) {
-        // Generate a new block
-        for (size_t i = 0; i < 8; i++) {
-            rng->buffer[i] = (rng->counter >> (i * 8)) & 0xFF;
-        }
-        rng->counter++;
-        xtea_encrypt_block(rng, rng->buffer);
-        rng->index = 0;
-    }
-    return rng->buffer[rng->index++];
+static uint8_t gf256_rand(ShamirRng *rng) {
+    uint8_t byte;
+    rng->get_bytes(rng->state, &byte, 1);
+    return byte;
 }
 
 static uint8_t gf256_add(uint8_t a, uint8_t b) {
@@ -91,15 +51,12 @@ static uint8_t gf256_poly_eval(const uint8_t *poly, size_t degree, uint8_t x) {
 ShamirStatus shamir_split(
     const uint8_t *secret, size_t secret_len, 
     size_t num_shares, size_t threshold,
-    uint8_t random_seed[16],
+    ShamirRng* rng,
     uint8_t ***out_shares
 ) {
     if (!secret || secret_len == 0 || num_shares < threshold || threshold == 0 || !out_shares) {
         return SHAMIR_ERROR_INVALID_PARAMETERS;
     }
-
-    XteaRng rng;
-    xtea_rng_init(&rng, random_seed);
 
     uint8_t **shares = (uint8_t **)malloc(num_shares * sizeof(uint8_t *));
     if (!shares) {
@@ -124,7 +81,7 @@ ShamirStatus shamir_split(
         }
         poly[0] = secret[byte_idx];
         for (size_t i = 1; i < threshold; i++) {
-            poly[i] = gf256_rand(&rng);
+            poly[i] = gf256_rand(rng);
         }
         for (size_t share_idx = 0; share_idx < num_shares; share_idx++) {
             shares[share_idx][byte_idx + 1] = gf256_poly_eval(poly, threshold - 1, shares[share_idx][0]);

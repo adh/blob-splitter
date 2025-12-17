@@ -16,11 +16,18 @@ typedef enum ShamirStatus_e {
     SHAMIR_ERROR_UNKNOWN
 } ShamirStatus;
 
+typedef void (*ShamirRng_get_bytes)(void* rng, uint8_t* buffer, size_t length);
+
+typedef struct ShamirRng_s {
+    void* state;
+    ShamirRng_get_bytes get_bytes;
+} ShamirRng;
+
 // Shamir's Secret Sharing functions
 extern ShamirStatus shamir_split(
     const uint8_t *secret, size_t secret_len, 
     size_t num_shares, size_t threshold,
-    uint8_t random_seed[16],
+    ShamirRng* rng,
     uint8_t ***out_shares
 );
 extern ShamirStatus shamir_reconstruct(

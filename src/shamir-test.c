@@ -11,8 +11,15 @@ int main() {
     size_t threshold = 3;
     uint8_t **shares = NULL;
     uint8_t random_seed[16];
+    RandomGenerator rng;
+
     get_random_bytes(random_seed, sizeof(random_seed));
-    ShamirStatus status = shamir_split(secret, secret_len, num_shares, threshold, random_seed, &shares);
+    rng_init(&rng, random_seed);
+
+    ShamirRng srng;
+    srng.state = &rng;
+    srng.get_bytes = (ShamirRng_get_bytes)rng_get_bytes;
+    ShamirStatus status = shamir_split(secret, secret_len, num_shares, threshold, &srng, &shares);
     if (status != SHAMIR_SUCCESS) {
         printf("Error splitting secret: %d\n", status);
         return 1;
