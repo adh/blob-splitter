@@ -1,10 +1,13 @@
 #include "shamir.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
-static uint8_t gf256_rand(ShamirRng *rng) {
+static uint8_t gf256_rand(ShamirRng *rng, bool reject_zero) {
     uint8_t byte;
-    rng->get_bytes(rng->state, &byte, 1);
+    do {
+        rng->get_bytes(rng->state, &byte, 1);
+    } while (reject_zero && byte == 0);
     return byte;
 }
 
@@ -81,7 +84,7 @@ ShamirStatus shamir_split(
         }
         poly[0] = secret[byte_idx];
         for (size_t i = 1; i < threshold; i++) {
-            poly[i] = gf256_rand(rng);
+            poly[i] = gf256_rand(rng, i == threshold - 1);
         }
         for (size_t share_idx = 0; share_idx < num_shares; share_idx++) {
             shares[share_idx][byte_idx + 1] = gf256_poly_eval(poly, threshold - 1, shares[share_idx][0]);
