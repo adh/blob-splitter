@@ -15,7 +15,7 @@ executable('ascon-test',
 )
 
 executable('blob-splitter',
-    sources: ['src/blob-splitter.c', 'src/shamir.c', 'src/random.c', 'src/ascon.c'],
+    sources: ['src/blob-splitter.c', 'src/shamir.c', 'src/random.c', 'src/ascon.c', 'src/share.c'],
     include_directories: include_directories('.'),
     install: true,
 )
